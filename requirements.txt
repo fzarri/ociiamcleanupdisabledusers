@@ -1,0 +1,12 @@
+fdk
+oci
+datetime
+requests
+certifi
+charset-normalizer
+idna
+python-dateutil
+six
+urllib3
+authlib
+datetime
