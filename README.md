@@ -4,7 +4,7 @@ This little utility is designed to be called periodically in order to delete dis
 
 Uses:
 
-* ClientID/ClientSecret authentication with IDCS
+* ClientID/ClientSecret authentication with OCI IAM (IDCS)
 * Secrets in Vault to store the ClientSecret for the above
 * Resource principal Authentication for OCI API invocations (Secrets, Logging)
 * Send to OCI Logging the users deletet for trace activities
