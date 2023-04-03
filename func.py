@@ -74,49 +74,29 @@ def get_secret(client, secret_ocid):
     logging.getLogger().debug("End - Get App Secret form OCI Vault Secret")
     return secret_content
     
+def search_filter(lastId, ociIamIDAppNameFusion, filter, searchsize, startIndex):
 
+    # this filter uses the app ID we looked up above
+    # and the last user "id" we saw
+    # we do the latter b/c of an oddity of SCIM (see my blog post and the RFC)
+    # https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.4
+    logging.getLogger().debug("Constructing search filter...")
+    
+    # filter = 'idcsCreatedBy.value eq "{}" and id gt "{}" and active eq false'.format(ociIamIDAppNameFusion,lastId)
+    filter = "active eq false"
 
-def LogEntry(log):
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-   
+    logging.getLogger().debug("Filter Search Users: {}".format(filter))
+    # my search options
+    args = {
+         "sortBy": "id",
+         "attributes": "id",
+         "filter": filter,
+         "count": searchsize,
+         "startIndex": str(startIndex)
+         }
     
-    logEntry = oci.loggingingestion.models.LogEntry(
-                            id=str(uuid.uuid1()),
-                            data=str(log),
-                            time=str(timestamp),              
-                            )
-    
-    return logEntry
-
-
-#Put Deleted User in OCI Logging for trace
-def put_userdeletelogs_ocilogging(log_id, log_entries, source, type, subject):
-    logging.getLogger().debug("Start - Send Logs to OCI Logging")
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    
-    
-    try:
-        rps = oci.auth.signers.get_resource_principals_signer()
-        loggingingestion_client = oci.loggingingestion.LoggingClient({}, signer=rps)
-        put_logs_response = loggingingestion_client.put_logs( 
-            log_id=log_id,     
-            put_logs_details=oci.loggingingestion.models.PutLogsDetails(
-                specversion="1.0",
-                log_entry_batches=[
-                    oci.loggingingestion.models.LogEntryBatch(
-                    entries=log_entries,
-                    source=source,
-                    type=type,
-                    defaultlogentrytime=timestamp,
-                    subject=subject)]),
-                timestamp_opc_agent_processing=str(timestamp)
-        )
-    except Exception as ex:
-        logging.getLogger().error("Failed to send logs to OCI Logging: %s", ex)
-        raise  
-        
-    logging.getLogger().debug("Stop - Send Logs to OCI Logging. Message return: {}".format(put_logs_response.data))
-    
+    logging.getLogger().debug("Return Filter: {}".format(args))
+    return args
     
 
 def handler(ctx, data: io.BytesIO = None):
@@ -223,32 +203,18 @@ def handler(ctx, data: io.BytesIO = None):
             
         startIndex=1
             
-        # this filter uses the app ID we looked up above
-        # and the last user "id" we saw
-        # we do the latter b/c of an oddity of SCIM (see my blog post and the RFC)
-        # https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.4
-        logging.getLogger().debug("Constructing search filter...")
-        # filter = 'idcsCreatedBy.value eq "{}" and id gt "{}" and active eq false'.format(ociIamIDAppNameFusion,lastId)
-        filter = "active eq false"
-
+        
         logging.getLogger().debug("Filter Search Users: {}".format(filter))
-        # my search options
-        args = {
-            "sortBy": "id",
-            "attributes": "id",
-            "filter": filter,
-            "count": SEARCHSIZE,
-            "startIndex": str(startIndex)
-        }
-
-        #Get Disabled Users from OCI IAM
-        #users = iam.GetUsers(args)
+        
+        args = search_filter(lastId, ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
+        
         
         logging.getLogger().debug("Search Users in OCI IAM")
         resultUsers = iam.GetUsers(args)
         
         totalUsersReturn = resultUsers["totalResults"]
         logging.getLogger().debug("Total of users return: {}".format(totalUsersReturn))
+        logging.getLogger().info("Total number of users to delete in OCI IAM: {}".format(totalUsersReturn))
         
         countusers = 1
         usersdeleteLogEntries = []
@@ -259,22 +225,17 @@ def handler(ctx, data: io.BytesIO = None):
                 
                 startIndex = startIndex + SEARCHSIZE
                 logging.getLogger().debug("Paging OCI IAM Users API Seach, StartIndex {}".format(startIndex))
-                logging.getLogger().debug("Filter Search Users: {}".format(filter))
-                # my search options
-                args = {
-                        "sortBy": "id",
-                        "attributes": "id",
-                        "filter": filter,
-                        "count": SEARCHSIZE,
-                        "startIndex": str(startIndex)
-                        }
+                
+                args = search_filter(lastId, ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
+                
                 resultUsers = iam.GetUsers(args)
+                
                 users += resultUsers["Resources"]     
         
 
             for user in users:
                 logging.getLogger().info(
-                    "User {} -> {}".format(user["id"], user["userName"])
+                    "User {} -> {}".format(user["userName"], user["id"])
                 ) 
                 
                 if countusers == MAXUSERSTODELETE:
@@ -283,10 +244,6 @@ def handler(ctx, data: io.BytesIO = None):
                     )
                     break  # max users
 
-                
-                #Prepare log user delete entry to send to OCI logging
-                usersdeleteLog = "User Deleted: {}".format(user["userName"])
-                usersdeleteLogEntries.append(LogEntry(usersdeleteLog)) 
                                          
                 
                 # create a DELETE request for the user id (note: not username - this is the value of the id attribute of the user object)
@@ -323,11 +280,6 @@ def handler(ctx, data: io.BytesIO = None):
                 # this shouldn't happen but just in case
                 else:
                     logging.error("Future did something weird")
-
-            
-            #Put Users Delete logs to OCI Logging
-            logging.getLogger().info("Send logs delete users to OCI Logging")
-            put_userdeletelogs_ocilogging(ociLoggingLogOcid, usersdeleteLogEntries, OCI_Logging_Users_DeleteLog_Source, OCI_Logging_Users_DeleteLog_Type, OCI_Logging_Users_DeleteLog_Subject)
             
             logging.getLogger().info("Deleted Users: {}".format(countusers))
             
