@@ -6,14 +6,13 @@ Uses:
 
 * ClientID/ClientSecret authentication with OCI IAM (IDCS)
 * Secrets in Vault to store the ClientSecret for the above
-* Resource principal Authentication for OCI API invocations (Secrets, Logging)
-* Send to OCI Logging the users deletet for trace activities
+* Resource principal Authentication for OCI API invocations (Secrets)
+* Send to OCI Logging the users delete for trace activities
 
 Required configuration:
 
 * Client in IDCS (with User Administrator, and ClientSecret associated with it for Client Credentials)
 * Private key for the above stored in Secrets
-* LogGroup and Logs created in OCI Logging
 * Dynamic Group which includes the running function
 * Policies on the Dyanmic Group for read access to the Secret, and put logs in OCI Loggings
 * Some sort of scheduler (I used OCI Alarm and Notification)
