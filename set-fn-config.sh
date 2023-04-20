@@ -8,4 +8,3 @@ fn config function $FN_APP_NAME ${PWD##*/} ociIamIDAppNameFusion $OCI_IAM_ID_APP
 fn config function $FN_APP_NAME ${PWD##*/} batchSize $FN_BATCH_SIZE
 fn config function $FN_APP_NAME ${PWD##*/} maxUserstoDelete $FN_MAX_USERS_TO_DELETE
 fn config function $FN_APP_NAME ${PWD##*/} maxWorkers $FN_MAX_WORKERS
-fn config function $FN_APP_NAME ${PWD##*/} ociLoggingLogOcid $OCI_LOGGING_LOG_OCID
