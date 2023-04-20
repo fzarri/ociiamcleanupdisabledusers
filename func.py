@@ -74,16 +74,12 @@ def get_secret(client, secret_ocid):
     logging.getLogger().debug("End - Get App Secret form OCI Vault Secret")
     return secret_content
     
-def search_filter(lastId, ociIamIDAppNameFusion, filter, searchsize, startIndex):
+def search_filter(ociIamIDAppNameFusion, filter, searchsize, startIndex):
 
-    # this filter uses the app ID we looked up above
-    # and the last user "id" we saw
-    # we do the latter b/c of an oddity of SCIM (see my blog post and the RFC)
-    # https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.4
     logging.getLogger().debug("Constructing search filter...")
     
-    # filter = 'idcsCreatedBy.value eq "{}" and id gt "{}" and active eq false'.format(ociIamIDAppNameFusion,lastId)
-    filter = "active eq false"
+    #filter = "active eq false"
+    filter = 'urn:ietf:params:scim:schemas:oracle:idcs:extension:user:User:syncedFromApp.value eq "{}" and active eq false'.format(ociIamIDAppNameFusion) 
 
     logging.getLogger().debug("Filter Search Users: {}".format(filter))
     # my search options
@@ -100,6 +96,8 @@ def search_filter(lastId, ociIamIDAppNameFusion, filter, searchsize, startIndex)
     
 
 def handler(ctx, data: io.BytesIO = None):
+    #Valid Value Log Level
+
 
     #Set Logging level
     #logging.getLogger().setLevel(logging.DEBUG)
@@ -110,11 +108,6 @@ def handler(ctx, data: io.BytesIO = None):
     
     # SEARCHSIZE is how many we should ask for in each search
     SEARCHSIZE = 1000
-    
-    # OCI Logging parameters
-    OCI_Logging_Users_DeleteLog_Source = "fn_oci_iam_delete_disabled_users"
-    OCI_Logging_Users_DeleteLog_Type = "fn_oci_iam_delete_disabled_users"
-    OCI_Logging_Users_DeleteLog_Subject = "fn_oci_iam_delete_disabled_users"
     
     try:
         logging.getLogger().info("function start")
@@ -140,20 +133,11 @@ def handler(ctx, data: io.BytesIO = None):
             "Max Workers creates the thread pool that we will use to do the deletes asynchronously: "
             + maxWorkers
         )
-        ociLoggingLogOcid = cfg["ociLoggingLogOcid"]
-        logging.getLogger().info(
-            "OCI Logging OCID = " + ociLoggingLogOcid
-        )
         ociIamIDAppNameFusion = cfg["ociIamIDAppNameFusion"]
         logging.getLogger().info(
             "OCI IAM ID App SaaS Fusion = " + ociIamIDAppNameFusion
         )
         
-        
-        
-        
-    
-
         
         # BATCHSIZE is the number of deletes we should do in a SCIM BULK call
         BATCHSIZE = int(batchSize)
@@ -175,16 +159,6 @@ def handler(ctx, data: io.BytesIO = None):
         # Step 3: Instance IAMClient
         logging.getLogger().debug("Inizialiting IAMClient")
         iam = IAMClient(ociIamBaseUrl, clientId, clientSecret)
-        
-    
-
-        # We need the App ID of the application defined in the config file
-        # this allows us to delete only the users created by the fakeUsers.py script
-        # FusionAppID = iam.GetAppID(ociIamAppNameFusion)
-
-        # this is the last "ID" number we saw.
-        # see my blog post for why I do this!
-        lastId = 0
 
         # start with an empty array
         reqs = []
@@ -196,27 +170,15 @@ def handler(ctx, data: io.BytesIO = None):
         
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
-        if MAXUSERSTODELETE < SEARCHSIZE:
-            #Reduce number of search size
-            logging.getLogger().debug("Max User to delete {} < of SearchSize {}, reduce SearchSize to {}".format(MAXUSERSTODELETE, SEARCHSIZE, SEARCHSIZE))
-            SEARCHSIZE = MAXUSERSTODELETE 
-            
         startIndex=1
-            
-        
         logging.getLogger().debug("Filter Search Users: {}".format(filter))
-        
-        args = search_filter(lastId, ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
-        
-        
+        args = search_filter(ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
         logging.getLogger().debug("Search Users in OCI IAM")
         resultUsers = iam.GetUsers(args)
-        
         totalUsersReturn = resultUsers["totalResults"]
         logging.getLogger().debug("Total of users return: {}".format(totalUsersReturn))
         logging.getLogger().info("Total number of users to delete in OCI IAM: {}".format(totalUsersReturn))
-        
-        countusers = 1
+        countusers = 0
         usersdeleteLogEntries = []
         
         if totalUsersReturn > 0:
@@ -226,7 +188,7 @@ def handler(ctx, data: io.BytesIO = None):
                 startIndex = startIndex + SEARCHSIZE
                 logging.getLogger().debug("Paging OCI IAM Users API Seach, StartIndex {}".format(startIndex))
                 
-                args = search_filter(lastId, ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
+                args = search_filter(ociIamIDAppNameFusion, filter, SEARCHSIZE, startIndex)
                 
                 resultUsers = iam.GetUsers(args)
                 
@@ -234,15 +196,15 @@ def handler(ctx, data: io.BytesIO = None):
         
 
             for user in users:
-                logging.getLogger().info(
-                    "User {} -> {}".format(user["userName"], user["id"])
-                ) 
-                
                 if countusers == MAXUSERSTODELETE:
                     logging.getLogger().info(
                         "Limit max Users to delete: " + str(MAXUSERSTODELETE)
                     )
                     break  # max users
+
+                logging.getLogger().info(
+                    "User {} -> {}".format(user["userName"], user["id"])
+                ) 
 
                                          
                 
