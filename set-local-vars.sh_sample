@@ -3,12 +3,11 @@
 
 
 
-export OCI_IAM_URL="https://idcs-xxxxxx.identity.oraclecloud.com"
-export VAULT_SECRET_OCID_OCI_IAM_APPSECRET="ocid1.vaultsecret.oc1.eu-frankfurt-1.xxxxxxx"
+export OCI_IAM_URL="https://idcs-xxxx.identity.oraclecloud.com"
+export VAULT_SECRET_OCID_OCI_IAM_APPSECRET="ocid1.vaultsecret.oc1.xxxxx.xxxx"
 export OCI_IAM_CLIENT_ID="xxxxxxx"
-export OCI_LOGGING_LOG_OCID="ocid1.log.oc1.eu-frankfurt-1.amxxxxx"
 export OCI_IAM_ID_APP_FUSION_SAAS="xxxxxxxxx"
-export FN_MAX_USERS_TO_DELETE="2000"
+export FN_MAX_USERS_TO_DELETE="100"
 export FN_BATCH_SIZE="100"
 export FN_MAX_WORKERS="4"
 export FN_APP_NAME="fn_app_name"
